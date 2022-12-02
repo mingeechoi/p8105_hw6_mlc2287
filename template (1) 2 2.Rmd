@@ -57,14 +57,72 @@ homicide_data%>%
                             disposition == "Open/No arrest" ~ 0),
          victim_age = as.numeric(victim_age),
          victim_race = as.factor(victim_race)) %>% 
-  filter(city_state != "Dallas_TX", 
-         city_state != "Phoenix_AZ", 
-         city_state != "Kansas City_MO",
-         city_state != "Tulsa_AL",
+  filter(city_state != "Dallas,TX", 
+         city_state != "Phoenix,AZ", 
+         city_state != "Kansas City,MO",
+         city_state != "Tulsa,AL",
          victim_race %in% c("Black", "White")) %>% 
   select(city_state, solved, victim_age, victim_race, victim_sex)
 
 homicide_df
+```
+
+Fit logistic regression with resolved vs unresolved as outcome and victim and age, sex, and race, as predictors.Save glm as R object.
+
+```{r}
+baltimore_df =
+  homicide_df %>% 
+  filter(city_state == "Baltimore,MD")
+
+baltimore_glm=
+  baltimore_df%>%
+  glm(solved ~ victim_age + victim_race + victim_sex, data = ., family = binomial()) 
+
+save(baltimore_glm, file="baltimore_glm.RData")
+```
+
+ Apply broom: tidy to object and obtain estimate and confidence interval of adjusted OR for solving homicides comparing male to female victims, keeping all other variable fixed.
+ 
+```{r}
+baltimore_glm%>%
+ broom::tidy() %>% 
+  mutate(OR = exp(estimate),
+         lower_ci = exp(estimate - 1.96*std.error),
+         upper_ci = exp(estimate + 1.96*std.error)) %>% 
+  select(term, log_OR = estimate, OR, p.value, lower_ci, upper_ci) %>% 
+  knitr::kable(digits = 3)
+```
+
+Run glm for each cities in dataset and extract adjusted OR and CI for solving homicides comparing male to female victims. Unnest.
+
+```{r}
+cities_glm=
+  homicide_df%>%
+  nest(data = -city_state) %>%
+  mutate( 
+    models = map(.x = data, ~glm(solved ~ victim_age + victim_sex + victim_race, data = .x, family = binomial())), 
+    results = map(models, broom::tidy)) %>%  
+  select(city_state, results) %>% 
+  unnest(results) %>%
+  mutate(OR = exp(estimate),
+         lower_ci = exp(estimate - 1.96*std.error),
+         upper_ci = exp(estimate + 1.96*std.error)) %>%
+  select(city_state, term, OR, lower_ci, upper_ci)
+
+cities_glm
+```
+
+Plot that shows estimated ORs and CIs for each city.
+```{r}
+cities_glm%>%
+  mutate(city_state = fct_reorder(city_state, OR)) %>% 
+  ggplot(aes(x = city_state, y = OR)) +
+  geom_point() + 
+  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci)) +
+  
+  labs(y = "OR", x = "City, State",title = "Homicides")+
+   theme(axis.text.x = element_text(angle = 80, hjust = 1))
+
 ```
 
 
