@@ -5,48 +5,68 @@ date: 12/1/2022
 output: github_document
 ---
 
+```{r setup, include=FALSE}
+library(tidyverse)
+library(p8105.datasets)
+library(viridis)
+library(broom)
+library(patchwork)
+library(modelr)
+library(mgcv)
+
+set.seed(1)
+
+knitr::opts_chunk$set(
+	echo = TRUE,
+	warning = FALSE,
+	fig.width = 8, 
+  fig.height = 6,
+  out.width = "90%"
+)
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+```
+
 # Problem 2
 
-Create city_state variable and binary variable indicating whether homicide is solved.
+Create city_state variable and binary variable indicating whether homicide is solved. Omit certain cities and Tulsa, AL. Limit analysis for whom victim_race is white or black. Make sure victim_age is numeric.
 
 ```{r}
-samp = rnorm(100)
-length(samp)
+homicide_data=
+  read_csv("./data/homicide-data.csv")%>%
+  janitor::clean_names()%>%
+  mutate(reported_date = lubridate::ymd(reported_date))%>%
+  drop_na(reported_date)
+
+homicide_df=
+homicide_data%>%
+  mutate(city_state= str_c(city, state, sep=",")
+  )%>%
+  select(uid,city_state,everything())%>%
+  group_by(city_state)%>%
+  mutate(solved = case_when(disposition == "Closed by arrest" ~ 1,
+                            disposition ==  "Closed without arrest" ~ 0,
+                            disposition == "Open/No arrest" ~ 0),
+         victim_age = as.numeric(victim_age),
+         victim_race = as.factor(victim_race)) %>% 
+  filter(city_state != "Dallas_TX", 
+         city_state != "Phoenix_AZ", 
+         city_state != "Kansas City_MO",
+         city_state != "Tulsa_AL",
+         victim_race %in% c("Black", "White")) %>% 
+  select(city_state, solved, victim_age, victim_race, victim_sex)
+
+homicide_df
 ```
 
-Omit certain cities and Tulsa, AL. Limit analysis for whom victim_race is white or black. Make sure victim_age is numeric.
-
-```{r}
-samp = rnorm(100)
-length(samp)
-```
-
-Fit logistic regression with resolved vs unresolved as outcome and victim and age, sex, and race, as predictors.Save glm as R object.
-
-```{r}
-samp = rnorm(100)
-length(samp)
-```
-
- Apply broom: tidy to object and obtain estimate and confidence interval of adjusted OR for solving homicides comparing male to female victims, keeping all other variable fixed.
- 
-```{r}
-samp = rnorm(100)
-length(samp)
-```
-
-Run glm for each cities in dataset and extract adjusted OR and CI for solving homicides comparing male to female victims. 
-
-```{r}
-samp = rnorm(100)
-length(samp)
-```
-
-Plot that shows estimated ORs and CIs for each city.
-```{r}
-samp = rnorm(100)
-length(samp)
-```
 
 
 # Problem 3
