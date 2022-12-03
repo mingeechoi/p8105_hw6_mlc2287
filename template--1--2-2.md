@@ -150,6 +150,7 @@ cities_glm%>%
 ```
 
 <img src="template--1--2-2_files/figure-gfm/unnamed-chunk-5-1.png" width="90%" />
+
 In most states, the odds that the homicide will remain solved for cases
 where the victim is male is lower than the odds that the homicide will
 remain solved for cases where the victim is female (ex: Chicago,
@@ -228,17 +229,30 @@ birthweight_df =
 Propose regression model for birthweight
 
 ``` r
+#checking assumption-normal distribution and residuals
+birthweight_df %>% 
+  ggplot(aes(x = bwt)) + 
+  geom_histogram(binwidth = 25) + 
+  labs(
+    title = "Checking Assumption", x = "Birthweight (g)",y = "Count"
+  )
+```
+
+<img src="template--1--2-2_files/figure-gfm/unnamed-chunk-7-1.png" width="90%" />
+
+``` r
 #I excluded pnumlbw and pnumgsa because they have 0 observations, malform and parity because they have low cell count, and ppbmi because I can use ppwt instead.
-everything_model = 
+full_model = 
   lm(
     bwt ~ babysex + bhead + blength + delwt+ fincome+frace + gaweeks + menarche+ mheight + momage + mrace + smoken + ppwt + wtgain,
     data = birthweight_df
   )
 
 #Summary table to see which covariates have p<0.05
-summary(everything_model) %>% 
+summary(full_model) %>% 
   broom::tidy() %>% 
-  mutate(
+  select(term, estimate, p.value)%>% 
+   mutate(
     p_value = format.pval(p.value, digits = 3, eps = 0.05)
   ) %>% 
   select(-p.value) %>%
@@ -246,24 +260,105 @@ summary(everything_model) %>%
   knitr::kable()
 ```
 
-| term              |      estimate |   std.error |   statistic | p_value |
-|:------------------|--------------:|------------:|------------:|:--------|
-| (Intercept)       | -6068.4938166 | 140.3723468 | -43.2314053 | \<0.05  |
-| babysex2          |    29.2645106 |   8.4628109 |   3.4580131 | \<0.05  |
-| bhead             |   130.9601419 |   3.4511959 |  37.9463077 | \<0.05  |
-| blength           |    74.8904878 |   2.0218359 |  37.0408333 | \<0.05  |
-| delwt             |     4.1290227 |   0.3945230 |  10.4658608 | \<0.05  |
-| gaweeks           |    11.2616326 |   1.4607821 |   7.7093174 | \<0.05  |
-| mheight           |     6.7694335 |   1.8011410 |   3.7584140 | \<0.05  |
-| mraceBlack        |  -151.4204451 |  46.0578137 |  -3.2876169 | \<0.05  |
-| smoken            |    -4.8595918 |   0.5870310 |  -8.2782538 | \<0.05  |
-| ppwt              |    -2.7526850 |   0.4327297 |  -6.3612108 | \<0.05  |
-| fincome           |     0.2752995 |   0.1794096 |   1.5344741 | 0.125   |
-| mraceAsian        |   -92.7619838 |  71.9112209 |  -1.2899515 | 0.197   |
-| mracePuerto Rican |   -56.8242317 |  45.1481728 |  -1.2586164 | 0.208   |
-| menarche          |    -3.5277645 |   2.8946601 |  -1.2187146 | 0.223   |
-| fracePuerto Rican |   -47.4657670 |  44.6901576 |  -1.0621078 | 0.288   |
-| momage            |     0.9797015 |   1.2187607 |   0.8038506 | 0.422   |
-| fraceBlack        |    14.4417524 |  46.1610351 |   0.3128559 | 0.754   |
-| fraceAsian        |    20.4717867 |  69.3152552 |   0.2953432 | 0.768   |
-| fraceOther        |     4.3848564 |  74.0865307 |   0.0591856 | 0.953   |
+| term              |      estimate | p_value |
+|:------------------|--------------:|:--------|
+| (Intercept)       | -6068.4938166 | \<0.05  |
+| babysex2          |    29.2645106 | \<0.05  |
+| bhead             |   130.9601419 | \<0.05  |
+| blength           |    74.8904878 | \<0.05  |
+| delwt             |     4.1290227 | \<0.05  |
+| gaweeks           |    11.2616326 | \<0.05  |
+| mheight           |     6.7694335 | \<0.05  |
+| mraceBlack        |  -151.4204451 | \<0.05  |
+| smoken            |    -4.8595918 | \<0.05  |
+| ppwt              |    -2.7526850 | \<0.05  |
+| fincome           |     0.2752995 | 0.125   |
+| mraceAsian        |   -92.7619838 | 0.197   |
+| mracePuerto Rican |   -56.8242317 | 0.208   |
+| menarche          |    -3.5277645 | 0.223   |
+| fracePuerto Rican |   -47.4657670 | 0.288   |
+| momage            |     0.9797015 | 0.422   |
+| fraceBlack        |    14.4417524 | 0.754   |
+| fraceAsian        |    20.4717867 | 0.768   |
+| fraceOther        |     4.3848564 | 0.953   |
+
+Variables that I found significant were babysex, bhead, blength, delwt,
+gaweeks, mheight, mraceBlack, smoken, and ppwt.
+
+``` r
+reduced_model = 
+  lm(
+    bwt ~ babysex + bhead + blength + delwt+ gaweeks +  mheight + mrace + smoken + ppwt,
+    data = birthweight_df
+  )
+
+birthweight_df %>% 
+  add_predictions(reduced_model) %>% 
+  add_residuals(reduced_model) %>% 
+  ggplot(aes(x = pred, y = resid)) + 
+  geom_point()+
+  labs(
+    title = "Residuals against Fitted Values",
+    x = "Fitted Values",
+    y = "Residuals"
+  )
+```
+
+<img src="template--1--2-2_files/figure-gfm/unnamed-chunk-8-1.png" width="90%" />
+
+Based on this plot, there seems to be a violation of the assumption of
+constance variance. There are some outliers that needs to be taken care
+of, and the distribution is heavily left-skewed. Possible solutions
+might be creating formal rule to exclude outliers, transforming variable
+using log transformation, or selecting best models of subsets by
+maximizing adjusted R-squared and minimizing prediction error.
+
+Alternative Models
+
+``` r
+alt_model1 =
+  lm(bwt ~ blength + gaweeks, data = birthweight_df)
+
+alt_model2 = 
+  lm(bwt ~ bhead + blength + babysex + bhead*blength + blength*babysex + bhead*babysex + bhead*blength*babysex, data = birthweight_df)
+```
+
+Compare models using cross-validation
+
+``` r
+cv_df = 
+  crossv_mc(birthweight_df, 100) %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble)
+  )
+
+cv_df =
+  cv_df %>% 
+  mutate(
+    reduced_model = map(.x = train, ~lm(bwt ~ babysex + bhead + blength + delwt+ gaweeks +  mheight + mrace + smoken + ppwt, data = .x)),
+    alt_model1 = map(.x = train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+    alt_model2 = map(.x = train, ~lm(bwt ~ bhead + blength + babysex + bhead*blength + blength*babysex + bhead*babysex + bhead*blength*babysex, data = .x))
+  ) %>% 
+  mutate(
+    rmse_reduced_model = map2_dbl(.x = reduced_model, .y = test, ~rmse(model = .x, data = .y)),
+    rmse_alt1 = map2_dbl(.x = alt_model1, .y = test, ~rmse(model = .x, data = .y)),
+    rmse_alt2 = map2_dbl(.x = alt_model2, .y = test, ~rmse(model = .x, data = .y))
+  )
+
+  cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model",
+    values_to = "rmse",
+    names_prefix = "rmse_"
+  ) %>% 
+  ggplot(aes(x = model, y = rmse)) +
+  geom_boxplot()
+```
+
+<img src="template--1--2-2_files/figure-gfm/unnamed-chunk-10-1.png" width="90%" />
+From the graph, we can clearly see that my reduced model has the lowest
+mean rmse value and therfore, might be the best fit among these three
+models.

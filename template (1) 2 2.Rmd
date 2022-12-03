@@ -7,7 +7,6 @@ output: github_document
 
 ```{r setup, include=FALSE}
 library(tidyverse)
-library(p8105.datasets)
 library(viridis)
 library(broom)
 library(patchwork)
@@ -123,6 +122,7 @@ cities_glm%>%
   labs(y = "OR", x = "City, State",title = "Homicides")+
    theme(axis.text.x = element_text(angle = 80, hjust = 1))
 ```
+
 In most states, the odds that the homicide will remain solved for cases where the victim is male is lower than the odds that the homicide will remain solved for cases where the victim is female (ex: Chicago, Cincinnati, Detroit)
 
 
@@ -164,31 +164,102 @@ birthweight_df =
 
 Propose regression model for birthweight
 ```{r}
+#checking assumption-normal distribution and residuals
+birthweight_df %>% 
+  ggplot(aes(x = bwt)) + 
+  geom_histogram(binwidth = 25) + 
+  labs(
+    title = "Checking Assumption", x = "Birthweight (g)",y = "Count"
+  )
+
 #I excluded pnumlbw and pnumgsa because they have 0 observations, malform and parity because they have low cell count, and ppbmi because I can use ppwt instead.
-everything_model = 
+full_model = 
   lm(
     bwt ~ babysex + bhead + blength + delwt+ fincome+frace + gaweeks + menarche+ mheight + momage + mrace + smoken + ppwt + wtgain,
     data = birthweight_df
   )
 
 #Summary table to see which covariates have p<0.05
-summary(everything_model) %>% 
+summary(full_model) %>% 
   broom::tidy() %>% 
-  mutate(
+  select(term, estimate, p.value)%>% 
+   mutate(
     p_value = format.pval(p.value, digits = 3, eps = 0.05)
   ) %>% 
   select(-p.value) %>%
   arrange(p_value) %>% 
   knitr::kable()
-    
 ```
 
+Variables that I found significant were babysex, bhead, blength, delwt, gaweeks, 
+mheight, mraceBlack, smoken, and ppwt. 
+
+```{r}
+reduced_model = 
+  lm(
+    bwt ~ babysex + bhead + blength + delwt+ gaweeks +  mheight + mrace + smoken + ppwt,
+    data = birthweight_df
+  )
+
+birthweight_df %>% 
+  add_predictions(reduced_model) %>% 
+  add_residuals(reduced_model) %>% 
+  ggplot(aes(x = pred, y = resid)) + 
+  geom_point()+
+  labs(
+    title = "Residuals against Fitted Values",
+    x = "Fitted Values",
+    y = "Residuals"
+  )
+
+```
+
+Based on this plot, there seems to be a violation of the assumption of constance variance. There are some outliers that needs to be taken care of, and the distribution is heavily left-skewed. Possible solutions might be creating formal rule to exclude outliers, transforming variable using log transformation, or selecting best models of subsets by maximizing adjusted R-squared and minimizing prediction error. 
 
 
+Alternative Models
+```{r}
+alt_model1 =
+  lm(bwt ~ blength + gaweeks, data = birthweight_df)
 
+alt_model2 = 
+  lm(bwt ~ bhead + blength + babysex + bhead*blength + blength*babysex + bhead*babysex + bhead*blength*babysex, data = birthweight_df)
+```
 
+Compare models using cross-validation
+```{r}
+cv_df = 
+  crossv_mc(birthweight_df, 100) %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble)
+  )
 
+cv_df =
+  cv_df %>% 
+  mutate(
+    reduced_model = map(.x = train, ~lm(bwt ~ babysex + bhead + blength + delwt+ gaweeks +  mheight + mrace + smoken + ppwt, data = .x)),
+    alt_model1 = map(.x = train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+    alt_model2 = map(.x = train, ~lm(bwt ~ bhead + blength + babysex + bhead*blength + blength*babysex + bhead*babysex + bhead*blength*babysex, data = .x))
+  ) %>% 
+  mutate(
+    rmse_reduced_model = map2_dbl(.x = reduced_model, .y = test, ~rmse(model = .x, data = .y)),
+    rmse_alt1 = map2_dbl(.x = alt_model1, .y = test, ~rmse(model = .x, data = .y)),
+    rmse_alt2 = map2_dbl(.x = alt_model2, .y = test, ~rmse(model = .x, data = .y))
+  )
 
+  cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model",
+    values_to = "rmse",
+    names_prefix = "rmse_"
+  ) %>% 
+  ggplot(aes(x = model, y = rmse)) +
+  geom_boxplot()
 
+```
+From the graph, we can clearly see that my reduced model has the lowest mean rmse value and therfore, might be the best fit among these three models.
 
 
