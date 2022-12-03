@@ -115,16 +115,80 @@ cities_glm
 Plot that shows estimated ORs and CIs for each city.
 ```{r}
 cities_glm%>%
+  filter(term == "victim_sexMale")%>%
   mutate(city_state = fct_reorder(city_state, OR)) %>% 
   ggplot(aes(x = city_state, y = OR)) +
   geom_point() + 
   geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci)) +
-  
   labs(y = "OR", x = "City, State",title = "Homicides")+
    theme(axis.text.x = element_text(angle = 80, hjust = 1))
+```
+In most states, the odds that the homicide will remain solved for cases where the victim is male is lower than the odds that the homicide will remain solved for cases where the victim is female (ex: Chicago, Cincinnati, Detroit)
 
+
+# Problem 3
+
+Load and clean data for regression analysis
+```{r}
+birthweight_data =
+  read_csv("./data/birthweight.csv") %>% 
+  drop_na() %>% 
+  janitor::clean_names()
+
+#checking datatype
+  str(birthweight_data)
+
+birthweight_df =
+  birthweight_data%>%
+  mutate(
+    babysex = as.factor(babysex),
+    malform = as.factor(malform),
+    frace = as.factor(frace),
+    frace = recode_factor(frace,
+                      "1" = "White",
+                      "2" = "Black",
+                      "3" = "Asian",
+                      "4" = "Puerto Rican",
+                      "8" = "Other"),
+    mrace = as.factor(mrace),
+    mrace = recode_factor(mrace,
+                      "1" = "White",
+                      "2" = "Black",
+                      "3" = "Asian",
+                      "4" = "Puerto Rican",
+                      "8" = "Other")
+  )%>%
+  select(bwt,everything())
+  
+```
+
+Propose regression model for birthweight
+```{r}
+#I excluded pnumlbw and pnumgsa because they have 0 observations, malform and parity because they have low cell count, and ppbmi because I can use ppwt instead.
+everything_model = 
+  lm(
+    bwt ~ babysex + bhead + blength + delwt+ fincome+frace + gaweeks + menarche+ mheight + momage + mrace + smoken + ppwt + wtgain,
+    data = birthweight_df
+  )
+
+#Summary table to see which covariates have p<0.05
+summary(everything_model) %>% 
+  broom::tidy() %>% 
+  mutate(
+    p_value = format.pval(p.value, digits = 3, eps = 0.05)
+  ) %>% 
+  select(-p.value) %>%
+  arrange(p_value) %>% 
+  knitr::kable()
+    
 ```
 
 
 
-# Problem 3
+
+
+
+
+
+
+
